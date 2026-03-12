@@ -67,6 +67,15 @@ public static class RateLimitingExtensions
                         BuildSlidingWindowOptions(options.Api));
                 });
 
+            // Api policy: Also registered as named policy so endpoints can
+            // explicitly opt into it via RequireRateLimiting("Api").
+            limiterOptions.AddPolicy(RateLimitPolicies.Api, httpContext =>
+            {
+                var key = GetUserOrIpKey(httpContext);
+                return RateLimitPartition.GetSlidingWindowLimiter(key, _ =>
+                    BuildSlidingWindowOptions(options.Api));
+            });
+
             // Auth policy: Strict, per-IP (user isn't authenticated yet).
             limiterOptions.AddPolicy(RateLimitPolicies.Auth, httpContext =>
             {

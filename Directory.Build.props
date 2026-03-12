@@ -19,9 +19,9 @@
     <Description>Production-ready rate limiting defaults for ASP.NET Core services with pre-configured policies (Auth, Api, Public, Upload). Sliding window partitioned by user or IP. One-line adoption via AddRateLimitingDefaults().</Description>
 
     <!-- Versioning -->
-    <Version>1.0.1</Version>
-    <AssemblyVersion>1.0.1.0</AssemblyVersion>
-    <FileVersion>1.0.1.0</FileVersion>
+    <Version>1.0.3</Version>
+    <AssemblyVersion>1.0.3.0</AssemblyVersion>
+    <FileVersion>1.0.3.0</FileVersion>
 
     <!-- NuGet settings -->
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
@@ -45,4 +45,5 @@
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>
+
 
