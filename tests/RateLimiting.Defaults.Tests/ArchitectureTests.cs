@@ -15,7 +15,7 @@ public class ArchitectureTests
     /// </summary>
     private static readonly Dictionary<string, string> ServiceProgramFiles = new()
     {
-        ["IdentityService"] = @"IdentityService\src\IdentityService.API",
+        ["TenantService"] = @"TenantService\src\TenantService.API",
         ["QuestionerService"] = @"QuestionerService\Questioner\src\Questioner.Web",
         ["OnlineMenuService"] = @"OnlineMenuSaaS\OnlineMenuService\OnlineMenu\src\OnlineMenu.Web",
         ["ContentService"] = @"ContentService\Content\src\Content.Web",
