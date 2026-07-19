@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Builder;
@@ -17,6 +18,12 @@ namespace RateLimiting.Defaults.Extensions;
 public static class RateLimitingExtensions
 {
     private const int StatusTooManyRequests = 429;
+
+    /// <summary>Per-request stash for the Retry-After hint a rejected policy advertises.</summary>
+    private const string RetryAfterHintItemKey = "__ratelimit_retry_after_seconds";
+
+    /// <summary>Last-resort Retry-After when no policy stashed a hint (defence in depth).</summary>
+    private const int DefaultRetryAfterSeconds = 60;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -63,6 +70,7 @@ public static class RateLimitingExtensions
                 httpContext =>
                 {
                     var key = GetUserOrIpKey(httpContext);
+                    StashRetryAfterHint(httpContext, options.Api);
                     return RateLimitPartition.GetSlidingWindowLimiter(key, _ =>
                         BuildSlidingWindowOptions(options.Api));
                 });
@@ -72,6 +80,7 @@ public static class RateLimitingExtensions
             limiterOptions.AddPolicy(RateLimitPolicies.Api, httpContext =>
             {
                 var key = GetUserOrIpKey(httpContext);
+                StashRetryAfterHint(httpContext, options.Api);
                 return RateLimitPartition.GetSlidingWindowLimiter(key, _ =>
                     BuildSlidingWindowOptions(options.Api));
             });
@@ -80,6 +89,7 @@ public static class RateLimitingExtensions
             limiterOptions.AddPolicy(RateLimitPolicies.Auth, httpContext =>
             {
                 var key = GetIpKey(httpContext);
+                StashRetryAfterHint(httpContext, options.Auth);
                 return RateLimitPartition.GetSlidingWindowLimiter(key, _ =>
                     BuildSlidingWindowOptions(options.Auth));
             });
@@ -88,6 +98,7 @@ public static class RateLimitingExtensions
             limiterOptions.AddPolicy(RateLimitPolicies.Public, httpContext =>
             {
                 var key = GetIpKey(httpContext);
+                StashRetryAfterHint(httpContext, options.Public);
                 return RateLimitPartition.GetSlidingWindowLimiter(key, _ =>
                     BuildSlidingWindowOptions(options.Public));
             });
@@ -96,23 +107,25 @@ public static class RateLimitingExtensions
             limiterOptions.AddPolicy(RateLimitPolicies.Upload, httpContext =>
             {
                 var key = GetUserOrIpKey(httpContext);
+                StashRetryAfterHint(httpContext, options.Upload);
                 return RateLimitPartition.GetSlidingWindowLimiter(key, _ =>
                     BuildSlidingWindowOptions(options.Upload));
             });
 
             // Custom rejection response with Retry-After header.
+            //
+            // Retry-After is ALWAYS emitted. Reading it from the lease metadata alone
+            // was dead code: every policy here is a sliding window, and
+            // SlidingWindowRateLimiter never populates MetadataName.RetryAfter (only
+            // the fixed-window and token-bucket limiters do). So this branch never
+            // fired and every 429 shipped without the one header that tells a client
+            // when to come back. The stashed per-policy hint is the fallback.
             limiterOptions.OnRejected = async (context, cancellationToken) =>
             {
-                var retryAfterSeconds = context.Lease.TryGetMetadata(
-                    MetadataName.RetryAfter, out var retryAfter)
-                    ? (int)retryAfter.TotalSeconds
-                    : (int?)null;
+                var retryAfterSeconds = ResolveRetryAfterSeconds(context.Lease, context.HttpContext);
 
-                if (retryAfterSeconds.HasValue)
-                {
-                    context.HttpContext.Response.Headers.RetryAfter =
-                        retryAfterSeconds.Value.ToString();
-                }
+                context.HttpContext.Response.Headers.RetryAfter =
+                    retryAfterSeconds.ToString(CultureInfo.InvariantCulture);
 
                 var response = new RateLimitResponse
                 {
@@ -142,6 +155,43 @@ public static class RateLimitingExtensions
             QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
             QueueLimit = 0
         };
+
+    /// <summary>
+    /// Records how long a caller should wait before retrying the policy that is about
+    /// to evaluate this request. For a sliding window the oldest segment expires after
+    /// <c>window / segments</c>, which is when a permit next frees up.
+    /// </summary>
+    /// <remarks>
+    /// Called from the POLICY lambda (which runs per request), never from the
+    /// partition factory — that only runs the first time a partition key is seen.
+    /// </remarks>
+    private static void StashRetryAfterHint(HttpContext httpContext, PolicyOptions policy)
+    {
+        var seconds = policy.SegmentsPerWindow > 0
+            ? (int)Math.Ceiling((double)policy.WindowSeconds / policy.SegmentsPerWindow)
+            : policy.WindowSeconds;
+        httpContext.Items[RetryAfterHintItemKey] = Math.Max(1, seconds);
+    }
+
+    /// <summary>
+    /// Resolves Retry-After seconds for a rejected request: limiter metadata when a
+    /// limiter supplies it, else the stashed per-policy hint, else a safe default.
+    /// </summary>
+    internal static int ResolveRetryAfterSeconds(RateLimitLease lease, HttpContext httpContext)
+    {
+        if (lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter) &&
+            retryAfter.TotalSeconds >= 1)
+        {
+            return (int)Math.Ceiling(retryAfter.TotalSeconds);
+        }
+
+        if (httpContext.Items.TryGetValue(RetryAfterHintItemKey, out var hint) && hint is int hintSeconds)
+        {
+            return hintSeconds;
+        }
+
+        return DefaultRetryAfterSeconds;
+    }
 
     /// <summary>
     /// Gets a partition key based on authenticated user ID or client IP.
