@@ -90,6 +90,27 @@ builder.AddRateLimitingDefaults(opts =>
 });
 ```
 
+## Client IP Behind Trusted Proxies
+
+Per-IP policies see the proxy's address unless forwarded headers are resolved first. Without this, every client shares one bucket.
+
+```csharp
+builder.AddRateLimitingDefaults();
+builder.AddClientIpForwarding();
+
+var app = builder.Build();
+app.UseForwardedHeaders();
+app.UseRateLimiter();
+```
+
+`X-Forwarded-For` is the only header read, and `ForwardLimit` is `null`, so the chain is walked right to left through trusted proxies and the first untrusted hop becomes the client. A rotated leftmost entry cannot change the bucket, and `X-Forwarded-For` from an untrusted peer is ignored.
+
+Trusted proxies default to `10.0.0.0/8`. Setting the list replaces that default; an empty list or an invalid CIDR throws at startup, because `ForwardedHeadersMiddleware` treats empty known networks as trust every peer.
+
+```csharp
+builder.AddClientIpForwarding(options => options.TrustedNetworks = ["192.168.0.0/16"]);
+```
+
 ## Rejection Response
 
 When a client exceeds the rate limit, they receive:
