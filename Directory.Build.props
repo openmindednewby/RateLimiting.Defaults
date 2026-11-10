@@ -20,7 +20,7 @@
     <Description>Production-ready rate limiting defaults for ASP.NET Core services with pre-configured policies (Auth, Api, Public, PublicWrite, Upload). Sliding window partitioned by user or IP. One-line adoption via AddRateLimitingDefaults().</Description>
 
     <!-- Versioning -->
-    <Version>1.2.0</Version>
+    <Version>1.1.0</Version>
     <AssemblyVersion>1.2.0.0</AssemblyVersion>
     <FileVersion>1.2.0.0</FileVersion>
 
