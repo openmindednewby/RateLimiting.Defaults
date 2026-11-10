@@ -13,7 +13,7 @@ namespace RateLimiting.Defaults.Extensions;
 
 /// <summary>
 /// Extension methods for configuring production-ready rate limiting with
-/// pre-defined policies for Auth, Api, Public, and Upload scenarios.
+/// pre-defined policies for Auth, Api, Public, PublicWrite, and Upload scenarios.
 /// </summary>
 public static class RateLimitingExtensions
 {
@@ -105,9 +105,10 @@ public static class RateLimitingExtensions
 
             limiterOptions.AddPolicy(RateLimitPolicies.PublicWrite, httpContext =>
             {
-                var key = GetIpKey(httpContext);
+                var key = PublicWritePartitionKey.From(
+                    httpContext.Connection.RemoteIpAddress, options.PublicWriteIpv6PrefixLength);
                 StashRetryAfterHint(httpContext, options.PublicWrite);
-                return RateLimitPartition.GetSlidingWindowLimiter($"pw:{key}", _ =>
+                return RateLimitPartition.GetSlidingWindowLimiter(key, _ =>
                     BuildSlidingWindowOptions(options.PublicWrite));
             });
 

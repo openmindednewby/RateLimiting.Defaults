@@ -6,14 +6,15 @@ namespace RateLimiting.Defaults.Configuration;
 /// </summary>
 public sealed class RateLimitingDefaultsOptions
 {
-    private const int SecondsPerDay = 86400;
-    private const int DefaultPublicWriteLimit = 5;
-    private const int PublicWriteSegments = 24;
-
     /// <summary>
     /// The configuration section name in appsettings.json.
     /// </summary>
     public const string SectionName = "RateLimiting";
+
+    private const int SecondsPerDay = 86400;
+    private const int DefaultPublicWriteLimit = 5;
+    private const int PublicWriteSegments = 24;
+    private const int DefaultIpv6PrefixLength = 64;
 
     /// <summary>
     /// Auth policy options (login, OTP, password reset). Default: 5/min per IP.
@@ -44,6 +45,8 @@ public sealed class RateLimitingDefaultsOptions
         WindowSeconds = SecondsPerDay,
         SegmentsPerWindow = PublicWriteSegments
     };
+
+    public int PublicWriteIpv6PrefixLength { get; set; } = DefaultIpv6PrefixLength;
 }
 
 /// <summary>

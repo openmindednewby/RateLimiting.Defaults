@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
@@ -89,6 +89,35 @@ public class PublicWritePolicyTests
         await pipeline.Invoke(context);
 
         Assert.Equal("3600", context.Response.Headers.RetryAfter.ToString());
+    }
+
+    [Fact]
+    public async Task PublicWrite_WhenOneIpv6AddressIsExhausted_RejectsAnotherAddressInTheSame64()
+    {
+        var pipeline = BuildPipeline(new Dictionary<string, string?>
+        {
+            ["RateLimiting:PublicWrite:PermitLimit"] = "1"
+        });
+        await SendAsync(pipeline, "2001:db8:1:2::1");
+
+        var sameSlash64 = await SendAsync(pipeline, "2001:db8:1:2::2");
+
+        Assert.Equal(StatusTooManyRequests, sameSlash64);
+    }
+
+    [Fact]
+    public async Task PublicWrite_WithIpv6PrefixLengthFromConfiguration_KeysOnThatPrefix()
+    {
+        var pipeline = BuildPipeline(new Dictionary<string, string?>
+        {
+            ["RateLimiting:PublicWrite:PermitLimit"] = "1",
+            ["RateLimiting:PublicWriteIpv6PrefixLength"] = "128"
+        });
+        await SendAsync(pipeline, "2001:db8:1:2::1");
+
+        var otherAddress = await SendAsync(pipeline, "2001:db8:1:2::2");
+
+        Assert.Equal(StatusOk, otherAddress);
     }
 
     private static Pipeline BuildPipeline(Dictionary<string, string?> settings)
