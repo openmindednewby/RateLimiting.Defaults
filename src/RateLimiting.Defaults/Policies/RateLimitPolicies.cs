@@ -30,4 +30,9 @@ public static class RateLimitPolicies
     /// Partitioned by authenticated user ID. Default: 10 requests per 60 seconds.
     /// </summary>
     public const string Upload = "Upload";
+
+    /// <summary>
+    /// Anonymous public writes that create something, partitioned by client IP. Default: 5 per 24 h.
+    /// </summary>
+    public const string PublicWrite = "PublicWrite";
 }

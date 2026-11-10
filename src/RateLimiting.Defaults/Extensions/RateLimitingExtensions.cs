@@ -103,6 +103,14 @@ public static class RateLimitingExtensions
                     BuildSlidingWindowOptions(options.Public));
             });
 
+            limiterOptions.AddPolicy(RateLimitPolicies.PublicWrite, httpContext =>
+            {
+                var key = GetIpKey(httpContext);
+                StashRetryAfterHint(httpContext, options.PublicWrite);
+                return RateLimitPartition.GetSlidingWindowLimiter($"pw:{key}", _ =>
+                    BuildSlidingWindowOptions(options.PublicWrite));
+            });
+
             // Upload policy: Tight, per-user.
             limiterOptions.AddPolicy(RateLimitPolicies.Upload, httpContext =>
             {

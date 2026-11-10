@@ -6,6 +6,10 @@ namespace RateLimiting.Defaults.Configuration;
 /// </summary>
 public sealed class RateLimitingDefaultsOptions
 {
+    private const int SecondsPerDay = 86400;
+    private const int DefaultPublicWriteLimit = 5;
+    private const int PublicWriteSegments = 24;
+
     /// <summary>
     /// The configuration section name in appsettings.json.
     /// </summary>
@@ -30,6 +34,16 @@ public sealed class RateLimitingDefaultsOptions
     /// Upload policy options (file uploads). Default: 10/min per user.
     /// </summary>
     public PolicyOptions Upload { get; set; } = new() { PermitLimit = 10 };
+
+    /// <summary>
+    /// PublicWrite policy options (anonymous writes that create something). Default: 5 per 24 h per IP, hourly segments.
+    /// </summary>
+    public PolicyOptions PublicWrite { get; set; } = new()
+    {
+        PermitLimit = DefaultPublicWriteLimit,
+        WindowSeconds = SecondsPerDay,
+        SegmentsPerWindow = PublicWriteSegments
+    };
 }
 
 /// <summary>
