@@ -15,6 +15,7 @@ public sealed class RateLimitingDefaultsOptions
     private const int DefaultPublicWriteLimit = 5;
     private const int PublicWriteSegments = 24;
     private const int DefaultIpv6PrefixLength = 64;
+    private const int DefaultManagementPort = 8081;
 
     /// <summary>
     /// Auth policy options (login, OTP, password reset). Default: 5/min per IP.
@@ -47,6 +48,9 @@ public sealed class RateLimitingDefaultsOptions
     };
 
     public int PublicWriteIpv6PrefixLength { get; set; } = DefaultIpv6PrefixLength;
+
+    /// <summary>Local port of the management listener (probes, metrics); the global limiter never limits it. Default: 8081.</summary>
+    public int ManagementPort { get; set; } = DefaultManagementPort;
 }
 
 /// <summary>

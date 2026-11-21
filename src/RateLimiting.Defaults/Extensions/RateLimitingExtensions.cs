@@ -18,6 +18,7 @@ namespace RateLimiting.Defaults.Extensions;
 public static class RateLimitingExtensions
 {
     private const int StatusTooManyRequests = 429;
+    private const string ManagementPartitionKey = "management";
 
     /// <summary>Per-request stash for the Retry-After hint a rejected policy advertises.</summary>
     private const string RetryAfterHintItemKey = "__ratelimit_retry_after_seconds";
@@ -64,11 +65,14 @@ public static class RateLimitingExtensions
         {
             limiterOptions.RejectionStatusCode = StatusTooManyRequests;
 
-            // Global limiter: Api policy for all requests by default.
-            // Partitioned by user ID (authenticated) or IP (anonymous).
             limiterOptions.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
                 httpContext =>
                 {
+                    if (httpContext.Connection.LocalPort == options.ManagementPort)
+                    {
+                        return RateLimitPartition.GetNoLimiter(ManagementPartitionKey);
+                    }
+
                     var key = GetUserOrIpKey(httpContext);
                     StashRetryAfterHint(httpContext, options.Api);
                     return RateLimitPartition.GetSlidingWindowLimiter(key, _ =>
