@@ -77,7 +77,7 @@ function Set-VersionInPropsFile {
     $text = $text -replace "<FileVersion>[^<]+</FileVersion>", "<FileVersion>$assemblyAndFileVersion</FileVersion>"
   }
 
-  Set-Content -Path $PropsPath -Value $text -Encoding utf8
+  Set-Content -Path $PropsPath -Value $text -Encoding utf8 -NoNewline
 }
 
 function Get-PackageIdFromPropsFile {
