@@ -12,8 +12,7 @@ using RateLimiting.Defaults.Policies;
 namespace RateLimiting.Defaults.Extensions;
 
 /// <summary>
-/// Extension methods for configuring production-ready rate limiting with
-/// pre-defined policies for Auth, Api, Public, PublicWrite, and Upload scenarios.
+/// Registers production rate limiting with the Auth, Api, Public, PublicWrite and Upload policies.
 /// </summary>
 public static class RateLimitingExtensions
 {
@@ -21,10 +20,8 @@ public static class RateLimitingExtensions
     private const string ManagementPartitionKey = "management";
     private const string HealthPathPrefix = "/health";
 
-    /// <summary>Per-request stash for the Retry-After hint a rejected policy advertises.</summary>
     private const string RetryAfterHintItemKey = "__ratelimit_retry_after_seconds";
 
-    /// <summary>Last-resort Retry-After when no policy stashed a hint (defence in depth).</summary>
     private const int DefaultRetryAfterSeconds = 60;
 
     private static readonly PathString MetricsPath = new("/metrics");
@@ -35,23 +32,8 @@ public static class RateLimitingExtensions
     };
 
     /// <summary>
-    /// Adds rate limiting services with pre-configured policies.
-    /// Policies are configurable via the "RateLimiting" section in appsettings.json.
-    /// <para>
-    /// Registers a global limiter (Api policy) that applies to all requests by default.
-    /// Endpoints can opt into stricter policies via <c>RequireRateLimiting("Auth")</c>.
-    /// </para>
+    /// Adds a global Api limiter and the named policies, bound from "RateLimiting", then <paramref name="configure"/>.
     /// </summary>
-    /// <typeparam name="TBuilder">The host builder type.</typeparam>
-    /// <param name="builder">The host application builder.</param>
-    /// <param name="configure">Optional action to override configuration after binding from appsettings.</param>
-    /// <remarks>
-    /// When deployed behind a reverse proxy (e.g., Nginx), callers must configure
-    /// <c>ForwardedHeadersOptions</c> and call <c>app.UseForwardedHeaders()</c>
-    /// before <c>app.UseRateLimiter()</c> to ensure correct client IP extraction.
-    /// Without this, all requests will share a single rate-limit bucket keyed to
-    /// the proxy's IP address.
-    /// </remarks>
     /// <returns>The builder for chaining.</returns>
     public static TBuilder AddRateLimitingDefaults<TBuilder>(
         this TBuilder builder,
@@ -83,8 +65,6 @@ public static class RateLimitingExtensions
                         BuildSlidingWindowOptions(options.Api));
                 });
 
-            // Api policy: Also registered as named policy so endpoints can
-            // explicitly opt into it via RequireRateLimiting("Api").
             limiterOptions.AddPolicy(RateLimitPolicies.Api, httpContext =>
             {
                 var key = GetUserOrIpKey(httpContext);
@@ -93,7 +73,6 @@ public static class RateLimitingExtensions
                     BuildSlidingWindowOptions(options.Api));
             });
 
-            // Auth policy: Strict, per-IP (user isn't authenticated yet).
             limiterOptions.AddPolicy(RateLimitPolicies.Auth, httpContext =>
             {
                 var key = GetIpKey(httpContext);
@@ -102,7 +81,6 @@ public static class RateLimitingExtensions
                     BuildSlidingWindowOptions(options.Auth));
             });
 
-            // Public policy: Relaxed, per-IP.
             limiterOptions.AddPolicy(RateLimitPolicies.Public, httpContext =>
             {
                 var key = GetIpKey(httpContext);
@@ -120,7 +98,6 @@ public static class RateLimitingExtensions
                     BuildSlidingWindowOptions(options.PublicWrite));
             });
 
-            // Upload policy: Tight, per-user.
             limiterOptions.AddPolicy(RateLimitPolicies.Upload, httpContext =>
             {
                 var key = GetUserOrIpKey(httpContext);
@@ -129,14 +106,6 @@ public static class RateLimitingExtensions
                     BuildSlidingWindowOptions(options.Upload));
             });
 
-            // Custom rejection response with Retry-After header.
-            //
-            // Retry-After is ALWAYS emitted. Reading it from the lease metadata alone
-            // was dead code: every policy here is a sliding window, and
-            // SlidingWindowRateLimiter never populates MetadataName.RetryAfter (only
-            // the fixed-window and token-bucket limiters do). So this branch never
-            // fired and every 429 shipped without the one header that tells a client
-            // when to come back. The stashed per-policy hint is the fallback.
             limiterOptions.OnRejected = async (context, cancellationToken) =>
             {
                 var retryAfterSeconds = ResolveRetryAfterSeconds(context.Lease, context.HttpContext);
@@ -160,9 +129,6 @@ public static class RateLimitingExtensions
         return builder;
     }
 
-    /// <summary>
-    /// Creates a <see cref="SlidingWindowRateLimiterOptions"/> from the given policy configuration.
-    /// </summary>
     private static SlidingWindowRateLimiterOptions BuildSlidingWindowOptions(PolicyOptions policy) =>
         new()
         {
@@ -173,15 +139,6 @@ public static class RateLimitingExtensions
             QueueLimit = 0
         };
 
-    /// <summary>
-    /// Records how long a caller should wait before retrying the policy that is about
-    /// to evaluate this request. For a sliding window the oldest segment expires after
-    /// <c>window / segments</c>, which is when a permit next frees up.
-    /// </summary>
-    /// <remarks>
-    /// Called from the POLICY lambda (which runs per request), never from the
-    /// partition factory — that only runs the first time a partition key is seen.
-    /// </remarks>
     private static void StashRetryAfterHint(HttpContext httpContext, PolicyOptions policy)
     {
         var seconds = policy.SegmentsPerWindow > 0
@@ -190,10 +147,6 @@ public static class RateLimitingExtensions
         httpContext.Items[RetryAfterHintItemKey] = Math.Max(1, seconds);
     }
 
-    /// <summary>
-    /// Resolves Retry-After seconds for a rejected request: limiter metadata when a
-    /// limiter supplies it, else the stashed per-policy hint, else a safe default.
-    /// </summary>
     internal static int ResolveRetryAfterSeconds(RateLimitLease lease, HttpContext httpContext)
     {
         if (lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter) &&
@@ -217,10 +170,6 @@ public static class RateLimitingExtensions
         path.Equals(MetricsPath) ||
         (path.StartsWithSegments(HealthPathPrefix, out var remaining) && remaining.HasValue);
 
-    /// <summary>
-    /// Gets a partition key based on authenticated user ID or client IP.
-    /// Used for Api and Upload policies where authenticated users get per-user limits.
-    /// </summary>
     private static string GetUserOrIpKey(HttpContext httpContext)
     {
         var userId = httpContext.User?.FindFirst("sub")?.Value;
@@ -232,10 +181,6 @@ public static class RateLimitingExtensions
         return GetIpKey(httpContext);
     }
 
-    /// <summary>
-    /// Gets a partition key based on client IP address.
-    /// Used for Auth and Public policies where requests are anonymous.
-    /// </summary>
     private static string GetIpKey(HttpContext httpContext)
     {
         var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
@@ -243,28 +188,13 @@ public static class RateLimitingExtensions
     }
 }
 
-/// <summary>
-/// Response model for rate limit rejection responses.
-/// </summary>
 internal sealed class RateLimitResponse
 {
-    /// <summary>
-    /// HTTP status code (always 429).
-    /// </summary>
     public int Status { get; init; }
 
-    /// <summary>
-    /// Error title.
-    /// </summary>
     public string Title { get; init; } = default!;
 
-    /// <summary>
-    /// Human-readable error detail.
-    /// </summary>
     public string Detail { get; init; } = default!;
 
-    /// <summary>
-    /// Seconds until the client can retry, if available.
-    /// </summary>
     public int? RetryAfterSeconds { get; init; }
 }

@@ -1,8 +1,7 @@
 namespace RateLimiting.Defaults.Configuration;
 
 /// <summary>
-/// Configuration options for rate limiting defaults.
-/// Bind from the "RateLimiting" section in appsettings.json.
+/// Configuration options for rate limiting defaults, bound from the "RateLimiting" section.
 /// </summary>
 public sealed class RateLimitingDefaultsOptions
 {
@@ -50,7 +49,7 @@ public sealed class RateLimitingDefaultsOptions
 
     public int PublicWriteIpv6PrefixLength { get; set; } = DefaultIpv6PrefixLength;
 
-    /// <summary>Local port of the management listener (probes, metrics); the global limiter never limits it. Default: 8081.</summary>
+    /// <summary>Management listener port (probes, metrics); the global limiter never limits it. Default: 8081.</summary>
     public int ManagementPort { get; set; } = DefaultManagementPort;
 
     /// <summary>Local port of the public listener; ManagementPort must differ from it. Default: 8080.</summary>
@@ -75,8 +74,7 @@ public sealed class PolicyOptions
     public int WindowSeconds { get; set; } = 60;
 
     /// <summary>
-    /// Number of segments per window for the sliding window algorithm.
-    /// More segments = smoother distribution. Default: 4.
+    /// Segments per sliding window; more segments give a smoother distribution. Default: 4.
     /// </summary>
     public int SegmentsPerWindow { get; set; } = DefaultSegments;
 }
