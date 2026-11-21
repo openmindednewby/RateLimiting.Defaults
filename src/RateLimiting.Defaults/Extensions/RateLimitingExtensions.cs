@@ -20,13 +20,14 @@ public static class RateLimitingExtensions
     private const int StatusTooManyRequests = 429;
     private const string ManagementPartitionKey = "management";
     private const string HealthPathPrefix = "/health";
-    private const string MetricsPath = "/metrics";
 
     /// <summary>Per-request stash for the Retry-After hint a rejected policy advertises.</summary>
     private const string RetryAfterHintItemKey = "__ratelimit_retry_after_seconds";
 
     /// <summary>Last-resort Retry-After when no policy stashed a hint (defence in depth).</summary>
     private const int DefaultRetryAfterSeconds = 60;
+
+    private static readonly PathString MetricsPath = new("/metrics");
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -62,6 +63,7 @@ public static class RateLimitingExtensions
             .GetSection(RateLimitingDefaultsOptions.SectionName)
             .Bind(options);
         configure?.Invoke(options);
+        ManagementPortValidator.Validate(options);
 
         builder.Services.AddRateLimiter(limiterOptions =>
         {
@@ -209,9 +211,11 @@ public static class RateLimitingExtensions
     }
 
     private static bool IsManagementRequest(HttpContext httpContext, int managementPort) =>
-        httpContext.Connection.LocalPort == managementPort &&
-        (httpContext.Request.Path.StartsWithSegments(HealthPathPrefix) ||
-         httpContext.Request.Path.StartsWithSegments(MetricsPath));
+        httpContext.Connection.LocalPort == managementPort && IsManagementPath(httpContext.Request.Path);
+
+    private static bool IsManagementPath(PathString path) =>
+        path.Equals(MetricsPath) ||
+        (path.StartsWithSegments(HealthPathPrefix, out var remaining) && remaining.HasValue);
 
     /// <summary>
     /// Gets a partition key based on authenticated user ID or client IP.

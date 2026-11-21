@@ -29,8 +29,7 @@ public class ArchitectureTests
         var servicePath = ServiceProgramFiles[serviceName];
         var serviceDir = Path.Combine(SaasRoot, servicePath);
 
-        // Search all .cs files in the service for AddRateLimitingDefaults
-        var csFiles = Directory.GetFiles(serviceDir, "*.cs", SearchOption.TopDirectoryOnly);
+        var csFiles = FindSourceFiles(serviceDir);
         var hasRegistration = csFiles.Any(file =>
         {
             var content = File.ReadAllText(file);
@@ -50,7 +49,7 @@ public class ArchitectureTests
         var servicePath = ServiceProgramFiles[serviceName];
         var serviceDir = Path.Combine(SaasRoot, servicePath);
 
-        var csFiles = Directory.GetFiles(serviceDir, "*.cs", SearchOption.TopDirectoryOnly);
+        var csFiles = FindSourceFiles(serviceDir);
         var hasMiddleware = csFiles.Any(file =>
         {
             var content = File.ReadAllText(file);
@@ -86,4 +85,12 @@ public class ArchitectureTests
     {
         return ServiceProgramFiles.Keys.Select(name => new object[] { name });
     }
+
+    private static IEnumerable<string> FindSourceFiles(string serviceDir) =>
+        Directory.GetFiles(serviceDir, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !IsBuildOutput(file));
+
+    private static bool IsBuildOutput(string file) =>
+        file.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Any(segment => segment is "bin" or "obj");
 }

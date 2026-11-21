@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.2
+
+- The management-port exemption matches `/metrics` exactly and `/health/` as a prefix (`/health/live`, `/health/ready`); `/metrics/x` and bare `/health` are limited as normal.
+- `RateLimiting:ManagementPort` is validated at startup: it must be greater than 0 and differ from `RateLimiting:PublicPort` (new, default 8080), so `/health` on the public port is always limited.
+
 ## 1.3.1
 
 - Security review (fail-open): the management-port exemption now applies only to `/health/*` and `/metrics` on that port; any other path on the management port is limited as normal.

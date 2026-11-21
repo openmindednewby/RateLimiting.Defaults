@@ -56,10 +56,3 @@
     <AdditionalFiles Include="$(RulesAnalyzerBaselineRoot)file-size-baseline.txt" Condition="Exists('$(RulesAnalyzerBaselineRoot)file-size-baseline.txt')" />
   </ItemGroup>
 </Project>
-
-
-
-
-
-
-
