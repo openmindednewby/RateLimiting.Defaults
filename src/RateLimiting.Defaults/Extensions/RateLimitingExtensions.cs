@@ -19,6 +19,8 @@ public static class RateLimitingExtensions
 {
     private const int StatusTooManyRequests = 429;
     private const string ManagementPartitionKey = "management";
+    private const string HealthPathPrefix = "/health";
+    private const string MetricsPath = "/metrics";
 
     /// <summary>Per-request stash for the Retry-After hint a rejected policy advertises.</summary>
     private const string RetryAfterHintItemKey = "__ratelimit_retry_after_seconds";
@@ -68,7 +70,7 @@ public static class RateLimitingExtensions
             limiterOptions.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
                 httpContext =>
                 {
-                    if (httpContext.Connection.LocalPort == options.ManagementPort)
+                    if (IsManagementRequest(httpContext, options.ManagementPort))
                     {
                         return RateLimitPartition.GetNoLimiter(ManagementPartitionKey);
                     }
@@ -205,6 +207,11 @@ public static class RateLimitingExtensions
 
         return DefaultRetryAfterSeconds;
     }
+
+    private static bool IsManagementRequest(HttpContext httpContext, int managementPort) =>
+        httpContext.Connection.LocalPort == managementPort &&
+        (httpContext.Request.Path.StartsWithSegments(HealthPathPrefix) ||
+         httpContext.Request.Path.StartsWithSegments(MetricsPath));
 
     /// <summary>
     /// Gets a partition key based on authenticated user ID or client IP.

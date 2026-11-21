@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1
+
+- Security review (fail-open): the management-port exemption now applies only to `/health/*` and `/metrics` on that port; any other path on the management port is limited as normal.
+
 ## 1.3.0
 
 - The global limiter never limits a request whose `Connection.LocalPort` is the management port (`RateLimiting:ManagementPort`, default 8081), so kubelet probes and Prometheus scrapes never get 429 under user load (D-SVCDEF-36). Keyed on the local port, never the Host header.
